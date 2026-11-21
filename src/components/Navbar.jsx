@@ -77,20 +77,24 @@ export default function Navbar({
             </>
           )}
 
-          {/* User profile / Logout */}
+          {/* User profile / Logout: Email ID is strictly hidden in mobile & tablet views */}
           {user && (
             <div className="flex items-center pl-1 sm:pl-2 border-l border-slate-200 gap-1 sm:gap-2">
+              {/* Only visible on wide desktop screens (hidden on all mobile & tablet devices) */}
               <span
-                className="hidden lg:inline-flex items-center gap-1.5 text-xs text-slate-600 font-medium bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200 max-w-[180px] truncate"
+                className="hidden xl:inline-flex items-center gap-1.5 text-xs text-slate-600 font-medium bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200 max-w-[180px] truncate"
                 title={user.email}
               >
                 <Mail className="w-3 h-3 text-slate-400 shrink-0" />
                 <span className="truncate">{user.email}</span>
               </span>
+
+              {/* Clean Logout Button for Mobile & Desktop */}
               <button
                 onClick={onLogout}
                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                 title="Sign Out"
+                aria-label="Sign Out"
               >
                 <LogOut className="w-4 h-4" />
               </button>
