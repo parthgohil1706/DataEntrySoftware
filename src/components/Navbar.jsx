@@ -1,5 +1,5 @@
 import React from 'react';
-import { Cloud, LogOut, Mail, Download, Plus, Settings, User } from 'lucide-react';
+import { Database, Cloud, LogOut, Mail, Download, Plus, Settings, User } from 'lucide-react';
 
 export default function Navbar({
   user,
