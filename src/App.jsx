@@ -4,6 +4,7 @@ import { exportToExcel } from './utils/excel';
 import { Api } from './utils/api';
 import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
+import ProfileModal from './components/ProfileModal';
 import ColumnSetup from './components/ColumnSetup';
 import DataEntryForm from './components/DataEntryForm';
 import DataTable from './components/DataTable';
@@ -18,6 +19,7 @@ export default function App() {
   const [showColumnSetup, setShowColumnSetup] = useState(false);
   const [isEditingColumns, setIsEditingColumns] = useState(false);
   const [showDbModal, setShowDbModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [dbStatus, setDbStatus] = useState({ connected: false, type: 'mysql' });
 
   // 1. Check MySQL Status on mount
@@ -135,6 +137,7 @@ export default function App() {
       <Navbar
         user={currentUser}
         onLogout={handleLogout}
+        onOpenProfile={() => setShowProfileModal(true)}
         currentSheet={activeSheet}
         sheets={sheets}
         onSelectSheet={setActiveSheet}
@@ -283,6 +286,15 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Profile & Security Modal */}
+      {showProfileModal && (
+        <ProfileModal
+          user={currentUser}
+          onClose={() => setShowProfileModal(false)}
+          onLogout={handleLogout}
+        />
       )}
 
       {/* PWA Install Banner */}

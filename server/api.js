@@ -169,7 +169,37 @@ export async function handleApiRequest(req, res, env) {
     }
   }
 
-  // 6. Sheets: Get Sheets (MySQL)
+  // 6. Auth: Update Password from Profile Section (MySQL)
+  if (pathname === '/api/auth/update-password' && req.method === 'POST') {
+    const { userId, email, currentPassword, newPassword } = await readBody();
+    const cleanEmail = (email || '').trim().toLowerCase();
+
+    if (!cleanEmail || !currentPassword || !newPassword || newPassword.length < 6) {
+      return sendJson(400, { error: 'Current password and new password (min 6 chars) are required.' });
+    }
+
+    try {
+      const pool = await getDbPool(env);
+      if (!pool) return sendJson(503, { error: 'MySQL database is not connected.' });
+
+      const [rows] = await pool.query('SELECT id, password FROM app_users WHERE email = ? LIMIT 1', [cleanEmail]);
+      if (!rows || rows.length === 0) {
+        return sendJson(404, { error: 'User account not found in MySQL.' });
+      }
+
+      const user = rows[0];
+      if (user.password !== currentPassword) {
+        return sendJson(400, { error: 'Current password is incorrect.' });
+      }
+
+      await pool.query('UPDATE app_users SET password = ? WHERE id = ?', [newPassword, user.id]);
+      return sendJson(200, { success: true, message: 'Password updated successfully in MySQL.' });
+    } catch (err) {
+      return sendJson(500, { error: err.message || 'Failed to update password in MySQL.' });
+    }
+  }
+
+  // 7. Sheets: Get Sheets (MySQL)
   if (pathname === '/api/sheets' && req.method === 'GET') {
     const userId = url.searchParams.get('userId');
     if (!userId) return sendJson(400, { error: 'userId is required' });
@@ -195,7 +225,7 @@ export async function handleApiRequest(req, res, env) {
     }
   }
 
-  // 7. Sheets: Save/Update Sheets (MySQL)
+  // 8. Sheets: Save/Update Sheets (MySQL)
   if (pathname === '/api/sheets' && req.method === 'POST') {
     const { userId, sheets } = await readBody();
     if (!userId) return sendJson(400, { error: 'userId is required' });
@@ -219,7 +249,7 @@ export async function handleApiRequest(req, res, env) {
     }
   }
 
-  // 8. Records: Get Records (MySQL)
+  // 9. Records: Get Records (MySQL)
   if (pathname === '/api/records' && req.method === 'GET') {
     const userId = url.searchParams.get('userId');
     const sheetId = url.searchParams.get('sheetId');
@@ -249,7 +279,7 @@ export async function handleApiRequest(req, res, env) {
     }
   }
 
-  // 9. Records: Save Records (MySQL)
+  // 10. Records: Save Records (MySQL)
   if (pathname === '/api/records' && req.method === 'POST') {
     const { userId, sheetId, records } = await readBody();
     if (!userId || !sheetId) return sendJson(400, { error: 'userId and sheetId are required' });
@@ -277,7 +307,7 @@ export async function handleApiRequest(req, res, env) {
     }
   }
 
-  // 10. Fallback OTP Mailer
+  // 11. Fallback OTP Mailer
   if (pathname === '/api/send-otp' && req.method === 'POST') {
     const { toEmail, otp } = await readBody();
     try {

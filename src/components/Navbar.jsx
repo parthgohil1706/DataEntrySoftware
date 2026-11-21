@@ -1,9 +1,10 @@
 import React from 'react';
-import { Database, LogOut, Mail, Download, Plus, Settings } from 'lucide-react';
+import { Database, LogOut, Mail, Download, Plus, Settings, User } from 'lucide-react';
 
 export default function Navbar({
   user,
   onLogout,
+  onOpenProfile,
   currentSheet,
   sheets,
   onSelectSheet,
@@ -96,13 +97,18 @@ export default function Navbar({
           {/* User profile / Logout */}
           {user && (
             <div className="flex items-center pl-1 sm:pl-2 border-l border-slate-200 gap-1 sm:gap-2">
-              <span
-                className="hidden xl:inline-flex items-center gap-1.5 text-xs text-slate-600 font-medium bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200 max-w-[180px] truncate"
-                title={user.email}
+              <button
+                type="button"
+                onClick={onOpenProfile}
+                className="flex items-center gap-1.5 text-xs text-slate-700 font-medium bg-slate-100 hover:bg-slate-200 px-2 sm:px-2.5 py-1.5 rounded-lg border border-slate-200 transition"
+                title="Account Profile & Change Password"
               >
-                <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                <span className="truncate">{user.email}</span>
-              </span>
+                <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+                  {(user.email?.[0] || 'U').toUpperCase()}
+                </div>
+                <span className="hidden xl:inline truncate max-w-[140px] text-slate-600">{user.email}</span>
+                <span className="hidden sm:inline xl:hidden text-slate-700">Profile</span>
+              </button>
 
               <button
                 onClick={onLogout}

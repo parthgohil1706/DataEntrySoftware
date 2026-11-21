@@ -172,7 +172,41 @@ export const Storage = {
     }
   },
 
-  // 6. Session Management
+  // 6. Update Password (from Profile Section)
+  async updatePassword(userId, email, currentPassword, newPassword) {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!currentPassword || !newPassword) {
+      throw new Error('Current password and new password are required.');
+    }
+    if (newPassword.length < 6) {
+      throw new Error('New password must be at least 6 characters long.');
+    }
+
+    let mysqlSucceeded = false;
+    try {
+      await Api.updatePassword(userId, cleanEmail, currentPassword, newPassword);
+      mysqlSucceeded = true;
+    } catch (err) {
+      if (err.message && (err.message.includes('incorrect') || err.message.includes('Current password'))) {
+        throw err;
+      }
+      console.warn('[Storage] MySQL update password fallback to local storage:', err.message);
+    }
+
+    // Update local cache
+    const users = this.getLocalUsers();
+    const userIndex = users.findIndex(u => (u.email || '').toLowerCase() === cleanEmail);
+    if (userIndex !== -1) {
+      if (!mysqlSucceeded && users[userIndex].password && users[userIndex].password !== currentPassword) {
+        throw new Error('Current password is incorrect.');
+      }
+      users[userIndex].password = newPassword;
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    }
+    return { success: true };
+  },
+
+  // 7. Session Management
   getCurrentUser() {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || 'null');

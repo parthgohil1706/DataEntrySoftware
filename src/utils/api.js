@@ -57,6 +57,17 @@ export const Api = {
     return data.user;
   },
 
+  async updatePassword(userId, email, currentPassword, newPassword) {
+    const res = await fetch('/api/auth/update-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, email, currentPassword, newPassword })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update password');
+    return data;
+  },
+
   async getSheets(userId) {
     const res = await fetch(`/api/sheets?userId=${encodeURIComponent(userId)}`);
     if (!res.ok) throw new Error('Failed to fetch sheets from MySQL');
