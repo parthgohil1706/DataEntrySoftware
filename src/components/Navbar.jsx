@@ -13,7 +13,8 @@ export default function Navbar({
   onExport,
   recordCount,
   onOpenCloudSettings,
-  dbConnected
+  dbConnected,
+  dbLabel
 }) {
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
@@ -55,10 +56,10 @@ export default function Navbar({
 
         {/* Action Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* MySQL Database Status */}
+          {/* Database / Cloud Status */}
           <button
             onClick={onOpenCloudSettings}
-            title={dbConnected ? "Connected to MySQL Database" : "Using Local Storage (Click for MySQL configuration)"}
+            title={dbConnected ? `Connected: ${dbLabel || 'Database'}` : "Click to connect Supabase Cloud or MySQL"}
             className={`hidden sm:inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition ${
               dbConnected
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
@@ -66,7 +67,7 @@ export default function Navbar({
             }`}
           >
             <Database className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">{dbConnected ? 'MySQL Connected' : 'MySQL Database'}</span>
+            <span className="hidden md:inline">{dbLabel || (dbConnected ? 'Database Connected' : 'Cloud Database')}</span>
           </button>
 
           {currentSheet && (

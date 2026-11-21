@@ -5,10 +5,12 @@ import { Api } from './utils/api';
 import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
 import ProfileModal from './components/ProfileModal';
+import DatabaseModal from './components/DatabaseModal';
 import ColumnSetup from './components/ColumnSetup';
 import DataEntryForm from './components/DataEntryForm';
 import DataTable from './components/DataTable';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
+import { testSupabaseConnection } from './utils/supabase';
 import { LayoutGrid, Plus, Sliders, Database, CheckCircle2, Server, ExternalLink } from 'lucide-react';
 
 export default function App() {
@@ -21,11 +23,15 @@ export default function App() {
   const [showDbModal, setShowDbModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [dbStatus, setDbStatus] = useState({ connected: false, type: 'mysql' });
+  const [supabaseStatus, setSupabaseStatus] = useState({ connected: false });
 
-  // 1. Check MySQL Status on mount
+  // 1. Check MySQL & Supabase Status on mount
   useEffect(() => {
     Api.getDbStatus().then(status => {
       setDbStatus(status);
+    });
+    testSupabaseConnection().then(status => {
+      setSupabaseStatus(status);
     });
   }, []);
 
@@ -152,7 +158,14 @@ export default function App() {
         onExport={handleExport}
         recordCount={records.length}
         onOpenCloudSettings={() => setShowDbModal(true)}
-        dbConnected={dbStatus.connected}
+        dbConnected={supabaseStatus.connected || dbStatus.connected}
+        dbLabel={
+          supabaseStatus.connected
+            ? 'Supabase Cloud'
+            : dbStatus.connected
+            ? 'MySQL Connected'
+            : 'Cloud Database'
+        }
       />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
@@ -192,8 +205,16 @@ export default function App() {
                   </span>
                 </h2>
                 <div className="flex items-center gap-1.5 mt-0.5 text-[11px] sm:text-xs text-slate-500">
-                  <span className={`inline-block w-2 h-2 rounded-full ${dbStatus.connected ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'}`}></span>
-                  <span>{dbStatus.connected ? `MySQL Database Active (${dbStatus.database || 'quickentry_db'})` : 'Local Storage Mode'}</span>
+                  <span className={`inline-block w-2 h-2 rounded-full ${
+                    (supabaseStatus.connected || dbStatus.connected) ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'
+                  }`}></span>
+                  <span>
+                    {supabaseStatus.connected
+                      ? 'Supabase Cloud Database Active (Multi-Device Sync)'
+                      : dbStatus.connected
+                      ? `MySQL Database Active (${dbStatus.database || 'quickentry_db'})`
+                      : 'Local Storage Mode'}
+                  </span>
                 </div>
               </div>
 
@@ -238,54 +259,15 @@ export default function App() {
         />
       )}
 
-      {/* MySQL Info Modal */}
+      {/* Cloud & MySQL Database Modal */}
       {showDbModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-5 sm:p-6 border border-slate-100">
-            <div className="flex items-center gap-2.5 mb-2">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${
-                dbStatus.connected ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
-              }`}>
-                <Database className="w-4 h-4" />
-              </div>
-              <h3 className="font-bold text-slate-800 text-sm sm:text-base">
-                MySQL Database Status
-              </h3>
-            </div>
-
-            <div className="my-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs text-slate-700">
-              <div className="flex justify-between items-center">
-                <span className="font-semibold text-slate-500">Status:</span>
-                <span className={`font-bold flex items-center gap-1 ${dbStatus.connected ? 'text-emerald-600' : 'text-amber-600'}`}>
-                  {dbStatus.connected ? '✓ Online & Syncing' : 'Offline (Using Local Storage)'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="font-semibold text-slate-500">Host:</span>
-                <span className="font-mono text-slate-800">{dbStatus.host || '127.0.0.1'}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="font-semibold text-slate-500">Database:</span>
-                <span className="font-mono text-slate-800">{dbStatus.database || 'quickentry_db'}</span>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-              Configure your MySQL credentials in your project's <code className="bg-slate-100 px-1 py-0.5 rounded text-blue-600">.env</code> file.
-              Works with local MySQL (XAMPP / WAMP / Workbench) or any cloud MySQL server!
-            </p>
-
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowDbModal(false)}
-                className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+        <DatabaseModal
+          mysqlStatus={dbStatus}
+          onClose={() => {
+            setShowDbModal(false);
+            testSupabaseConnection().then(setSupabaseStatus);
+          }}
+        />
       )}
 
       {/* Profile & Security Modal */}
