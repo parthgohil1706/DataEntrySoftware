@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Storage } from '../utils/storage';
 import { isValidEmail } from '../utils/validation';
-import DatabaseModal from './DatabaseModal';
-import { testSupabaseConnection } from '../utils/supabase';
-import { Mail, Lock, KeyRound, ArrowRight, ArrowLeft, ShieldCheck, CheckCircle2, Eye, EyeOff, Loader2, Cloud } from 'lucide-react';
+import { Mail, Lock, KeyRound, ArrowRight, ArrowLeft, ShieldCheck, CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function AuthModal({ onAuthSuccess }) {
   // Modes: 'login' | 'register' | 'forgot_request' | 'forgot_verify'
@@ -20,14 +18,6 @@ export default function AuthModal({ onAuthSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-
-  // Cloud Database Modal
-  const [showDbModal, setShowDbModal] = useState(false);
-  const [supabaseStatus, setSupabaseStatus] = useState({ connected: false });
-
-  useEffect(() => {
-    testSupabaseConnection().then(status => setSupabaseStatus(status));
-  }, []);
 
   const resetFormState = () => {
     setError('');
@@ -153,21 +143,6 @@ export default function AuthModal({ onAuthSuccess }) {
   return (
     <div className="min-h-[85vh] flex items-center justify-center p-3 sm:p-4">
       <div className="w-full max-w-md bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-slate-100 p-5 sm:p-7 md:p-8 relative">
-
-        {/* Cloud Database Status Button */}
-        <button
-          type="button"
-          onClick={() => setShowDbModal(true)}
-          className={`absolute top-4 right-4 inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-full border transition hover:opacity-90 ${
-            supabaseStatus.connected
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-              : 'bg-blue-50 border-blue-200 text-blue-700'
-          }`}
-          title="Supabase Cloud Database Status"
-        >
-          <Cloud className="w-3 h-3" />
-          <span>{supabaseStatus.connected ? 'Cloud DB Active' : 'Cloud DB'}</span>
-        </button>
 
         {/* Header Icon & Title */}
         <div className="text-center mb-5 sm:mb-6 mt-2">
@@ -548,16 +523,6 @@ export default function AuthModal({ onAuthSuccess }) {
           </div>
         )}
       </div>
-
-      {/* Cloud Database Modal */}
-      {showDbModal && (
-        <DatabaseModal
-          onClose={() => {
-            setShowDbModal(false);
-            testSupabaseConnection().then(setSupabaseStatus);
-          }}
-        />
-      )}
     </div>
   );
 }
