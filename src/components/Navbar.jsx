@@ -1,5 +1,5 @@
 import React from 'react';
-import { Database, Cloud, LogOut, Mail, Download, Plus, Settings, User } from 'lucide-react';
+import { Database, LogOut, Mail, Download, Plus, Settings, User } from 'lucide-react';
 
 export default function Navbar({
   user,
@@ -11,10 +11,7 @@ export default function Navbar({
   onNewSheet,
   onEditColumns,
   onExport,
-  recordCount,
-  onOpenCloudSettings,
-  dbConnected,
-  dbLabel
+  recordCount
 }) {
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
@@ -56,20 +53,6 @@ export default function Navbar({
 
         {/* Action Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Cloud Database Status */}
-          <button
-            onClick={onOpenCloudSettings}
-            title={dbConnected ? `Connected: ${dbLabel || 'Supabase Cloud Database'}` : "Click to view Cloud Database settings"}
-            className={`hidden sm:inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition ${
-              dbConnected
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-            }`}
-          >
-            <Cloud className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">{dbLabel || (dbConnected ? 'Cloud Database' : 'Connect Cloud DB')}</span>
-          </button>
-
           {currentSheet && (
             <>
               <button

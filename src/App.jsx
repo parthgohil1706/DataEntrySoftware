@@ -5,13 +5,12 @@ import { Api } from './utils/api';
 import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
 import ProfileModal from './components/ProfileModal';
-import DatabaseModal from './components/DatabaseModal';
 import ColumnSetup from './components/ColumnSetup';
 import DataEntryForm from './components/DataEntryForm';
 import DataTable from './components/DataTable';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import { testSupabaseConnection } from './utils/supabase';
-import { LayoutGrid, Plus, Sliders, Database, CheckCircle2, Server, ExternalLink } from 'lucide-react';
+import { LayoutGrid, Plus, Sliders, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -20,7 +19,6 @@ export default function App() {
   const [records, setRecords] = useState([]);
   const [showColumnSetup, setShowColumnSetup] = useState(false);
   const [isEditingColumns, setIsEditingColumns] = useState(false);
-  const [showDbModal, setShowDbModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [supabaseStatus, setSupabaseStatus] = useState({ connected: false });
 
@@ -153,9 +151,6 @@ export default function App() {
         }}
         onExport={handleExport}
         recordCount={records.length}
-        onOpenCloudSettings={() => setShowDbModal(true)}
-        dbConnected={supabaseStatus.connected}
-        dbLabel={supabaseStatus.connected ? 'Cloud Database' : 'Connect Cloud DB'}
       />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
@@ -194,16 +189,6 @@ export default function App() {
                     {activeSheet.columns.length} Columns
                   </span>
                 </h2>
-                <div className="flex items-center gap-1.5 mt-0.5 text-[11px] sm:text-xs text-slate-500">
-                  <span className={`inline-block w-2 h-2 rounded-full ${
-                    supabaseStatus.connected ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'
-                  }`}></span>
-                  <span>
-                    {supabaseStatus.connected
-                      ? 'Supabase Cloud Database Active (Multi-Device Sync)'
-                      : 'Local Storage Mode'}
-                  </span>
-                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -244,16 +229,6 @@ export default function App() {
           initialSheet={isEditingColumns ? activeSheet : null}
           onSave={handleSaveSheet}
           onCancel={() => setShowColumnSetup(false)}
-        />
-      )}
-
-      {/* Cloud Database Modal */}
-      {showDbModal && (
-        <DatabaseModal
-          onClose={() => {
-            setShowDbModal(false);
-            testSupabaseConnection().then(setSupabaseStatus);
-          }}
         />
       )}
 
