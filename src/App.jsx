@@ -22,14 +22,10 @@ export default function App() {
   const [isEditingColumns, setIsEditingColumns] = useState(false);
   const [showDbModal, setShowDbModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [dbStatus, setDbStatus] = useState({ connected: false, type: 'mysql' });
   const [supabaseStatus, setSupabaseStatus] = useState({ connected: false });
 
-  // 1. Check MySQL & Supabase Status on mount
+  // 1. Check Supabase Cloud Database Status on mount
   useEffect(() => {
-    Api.getDbStatus().then(status => {
-      setDbStatus(status);
-    });
     testSupabaseConnection().then(status => {
       setSupabaseStatus(status);
     });
@@ -158,14 +154,8 @@ export default function App() {
         onExport={handleExport}
         recordCount={records.length}
         onOpenCloudSettings={() => setShowDbModal(true)}
-        dbConnected={supabaseStatus.connected || dbStatus.connected}
-        dbLabel={
-          supabaseStatus.connected
-            ? 'Supabase Cloud'
-            : dbStatus.connected
-            ? 'MySQL Connected'
-            : 'Cloud Database'
-        }
+        dbConnected={supabaseStatus.connected}
+        dbLabel={supabaseStatus.connected ? 'Cloud Database' : 'Connect Cloud DB'}
       />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
@@ -206,13 +196,11 @@ export default function App() {
                 </h2>
                 <div className="flex items-center gap-1.5 mt-0.5 text-[11px] sm:text-xs text-slate-500">
                   <span className={`inline-block w-2 h-2 rounded-full ${
-                    (supabaseStatus.connected || dbStatus.connected) ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'
+                    supabaseStatus.connected ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'
                   }`}></span>
                   <span>
                     {supabaseStatus.connected
                       ? 'Supabase Cloud Database Active (Multi-Device Sync)'
-                      : dbStatus.connected
-                      ? `MySQL Database Active (${dbStatus.database || 'quickentry_db'})`
                       : 'Local Storage Mode'}
                   </span>
                 </div>
@@ -259,10 +247,9 @@ export default function App() {
         />
       )}
 
-      {/* Cloud & MySQL Database Modal */}
+      {/* Cloud Database Modal */}
       {showDbModal && (
         <DatabaseModal
-          mysqlStatus={dbStatus}
           onClose={() => {
             setShowDbModal(false);
             testSupabaseConnection().then(setSupabaseStatus);

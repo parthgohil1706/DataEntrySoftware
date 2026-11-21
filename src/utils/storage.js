@@ -1,7 +1,6 @@
-// Hybrid Storage Manager: Supabase Cloud (Primary) + MySQL (Server) + Local Cache (Fallback)
+// Storage Manager: Supabase Cloud Database (Primary) + Local Cache (Offline Fallback)
 import { isValidEmail } from './validation';
 import { sendOtpEmail } from './mailer';
-import { Api } from './api';
 import { getSupabase } from './supabase';
 
 const STORAGE_KEYS = {
@@ -21,7 +20,7 @@ export const Storage = {
     }
   },
 
-  // 2. User Registration (Supabase -> MySQL -> Local Fallback)
+  // 2. User Registration (Supabase Cloud + Local Fallback)
   async register(email, password) {
     const cleanEmail = (email || '').trim().toLowerCase();
     if (!isValidEmail(cleanEmail)) {
@@ -33,7 +32,7 @@ export const Storage = {
 
     const supabase = getSupabase();
 
-    // 2A. Attempt Supabase Cloud Registration
+    // 2A. Supabase Cloud Registration
     if (supabase) {
       try {
         const { data: existing, error: checkErr } = await supabase
@@ -67,35 +66,23 @@ export const Storage = {
         if (err.message && err.message.includes('already exists')) {
           throw err;
         }
-        console.warn('[Storage] Supabase registration error, falling back:', err.message);
+        console.warn('[Storage] Supabase registration error, falling back to local storage:', err.message);
       }
     }
 
-    // 2B. Attempt MySQL Registration
-    try {
-      const user = await Api.register(cleanEmail, password);
-      this.setCurrentUser(user);
-      return user;
-    } catch (err) {
-      if (err.message && err.message.includes('already exists')) {
-        throw err;
-      }
-      console.warn('[Storage] MySQL unavailable, using local storage:', err.message);
-
-      // 2C. Local fallback
-      const users = this.getLocalUsers();
-      if (users.find(u => (u.email || '').toLowerCase() === cleanEmail)) {
-        throw new Error('An account already exists with this email address. Please sign in instead.');
-      }
-      const newUser = { id: 'usr_' + Date.now(), email: cleanEmail, createdAt: new Date().toISOString() };
-      users.push({ ...newUser, password });
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-      this.setCurrentUser(newUser);
-      return newUser;
+    // 2B. Local Fallback
+    const users = this.getLocalUsers();
+    if (users.find(u => (u.email || '').toLowerCase() === cleanEmail)) {
+      throw new Error('An account already exists with this email address. Please sign in instead.');
     }
+    const newUser = { id: 'usr_' + Date.now(), email: cleanEmail, createdAt: new Date().toISOString() };
+    users.push({ ...newUser, password });
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    this.setCurrentUser(newUser);
+    return newUser;
   },
 
-  // 3. User Login (Supabase -> MySQL -> Local Fallback)
+  // 3. User Login (Supabase Cloud + Local Fallback)
   async login(email, password) {
     const cleanEmail = (email || '').trim().toLowerCase();
     if (!cleanEmail || !password) {
@@ -104,7 +91,7 @@ export const Storage = {
 
     const supabase = getSupabase();
 
-    // 3A. Attempt Supabase Login
+    // 3A. Supabase Cloud Login
     if (supabase) {
       try {
         const { data, error } = await supabase
@@ -127,38 +114,26 @@ export const Storage = {
         if (err.message && (err.message.includes('Invalid') || err.message.includes('Forgot Password'))) {
           throw err;
         }
-        console.warn('[Storage] Supabase login error, falling back:', err.message);
+        console.warn('[Storage] Supabase login error, checking local storage:', err.message);
       }
     }
 
-    // 3B. Attempt MySQL Login
-    try {
-      const user = await Api.login(cleanEmail, password);
-      this.setCurrentUser(user);
-      return user;
-    } catch (err) {
-      if (err.message && (err.message.includes('Invalid') || err.message.includes('password'))) {
-        throw err;
-      }
-      console.warn('[Storage] MySQL unavailable, using local storage login:', err.message);
+    // 3B. Local Fallback
+    const users = this.getLocalUsers();
+    const user = users.find(
+      u => (u.email || '').toLowerCase() === cleanEmail && u.password === password
+    );
 
-      // 3C. Local fallback
-      const users = this.getLocalUsers();
-      const user = users.find(
-        u => (u.email || '').toLowerCase() === cleanEmail && u.password === password
-      );
-
-      if (!user) {
-        throw new Error('Invalid email or password. If you forgot your password, click "Forgot Password".');
-      }
-
-      const safeUser = { id: user.id, email: user.email, createdAt: user.createdAt };
-      this.setCurrentUser(safeUser);
-      return safeUser;
+    if (!user) {
+      throw new Error('Invalid email or password. If you forgot your password, click "Forgot Password".');
     }
+
+    const safeUser = { id: user.id, email: user.email, createdAt: user.createdAt };
+    this.setCurrentUser(safeUser);
+    return safeUser;
   },
 
-  // 4. Password Recovery via Real Email OTP (Supabase / MySQL / Gmail)
+  // 4. Password Recovery via Real Email OTP (Supabase Cloud + Gmail)
   async sendPasswordResetOtp(email) {
     const cleanEmail = (email || '').trim().toLowerCase();
     if (!isValidEmail(cleanEmail)) {
@@ -193,33 +168,24 @@ export const Storage = {
         }
       } catch (err) {
         if (err.message && err.message.includes('No account found')) throw err;
-        console.warn('[Storage] Supabase reset OTP failed, trying MySQL:', err.message);
+        console.warn('[Storage] Supabase reset OTP failed, checking local storage:', err.message);
       }
     }
 
-    // 4B. MySQL fallback
-    try {
-      const res = await Api.forgotPassword(cleanEmail);
-      return { success: true, email: res.email };
-    } catch (err) {
-      if (err.message && err.message.includes('No account found')) throw err;
-      console.warn('[Storage] MySQL unavailable, using local OTP fallback:', err.message);
-
-      // 4C. Local fallback
-      const users = this.getLocalUsers();
-      const user = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
-      if (!user) {
-        throw new Error('No account found with this email. Please check your email or register.');
-      }
-
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiresAt = Date.now() + 10 * 60 * 1000;
-      user.resetOtp = { code: otp, expiresAt };
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-
-      await sendOtpEmail(user.email, otp);
-      return { success: true, email: user.email };
+    // 4B. Local Fallback
+    const users = this.getLocalUsers();
+    const user = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
+    if (!user) {
+      throw new Error('No account found with this email. Please check your email or register.');
     }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+    user.resetOtp = { code: otp, expiresAt };
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+
+    await sendOtpEmail(user.email, otp);
+    return { success: true, email: user.email };
   },
 
   // 5. Verify OTP & Reset Password
@@ -275,38 +241,26 @@ export const Storage = {
       }
     }
 
-    // 5B. MySQL
-    try {
-      const user = await Api.resetPassword(cleanEmail, cleanOtp, newPassword);
-      this.setCurrentUser(user);
-      return user;
-    } catch (err) {
-      if (err.message && (err.message.includes('Invalid') || err.message.includes('expired') || err.message.includes('No OTP'))) {
-        throw err;
-      }
-      console.warn('[Storage] MySQL unavailable, using local OTP verification:', err.message);
-
-      // 5C. Local fallback
-      const users = this.getLocalUsers();
-      const user = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
-      if (!user || !user.resetOtp) {
-        throw new Error('No OTP request found for this email. Please request a new OTP.');
-      }
-      if (Date.now() > user.resetOtp.expiresAt) {
-        throw new Error('The OTP code has expired. Please request a new one.');
-      }
-      if (user.resetOtp.code !== cleanOtp) {
-        throw new Error('Invalid OTP code. Please check the code sent to your email and try again.');
-      }
-
-      user.password = newPassword;
-      delete user.resetOtp;
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-
-      const safeUser = { id: user.id, email: user.email, createdAt: user.createdAt };
-      this.setCurrentUser(safeUser);
-      return safeUser;
+    // 5B. Local Fallback
+    const users = this.getLocalUsers();
+    const user = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
+    if (!user || !user.resetOtp) {
+      throw new Error('No OTP request found for this email. Please request a new OTP.');
     }
+    if (Date.now() > user.resetOtp.expiresAt) {
+      throw new Error('The OTP code has expired. Please request a new one.');
+    }
+    if (user.resetOtp.code !== cleanOtp) {
+      throw new Error('Invalid OTP code. Please check the code sent to your email and try again.');
+    }
+
+    user.password = newPassword;
+    delete user.resetOtp;
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+
+    const safeUser = { id: user.id, email: user.email, createdAt: user.createdAt };
+    this.setCurrentUser(safeUser);
+    return safeUser;
   },
 
   // 6. Update Password (from Profile Section)
@@ -343,22 +297,11 @@ export const Storage = {
         }
       } catch (err) {
         if (err.message && err.message.includes('Current password is incorrect')) throw err;
-        console.warn('[Storage] Supabase update password failed, trying MySQL:', err.message);
+        console.warn('[Storage] Supabase update password failed, updating local storage:', err.message);
       }
     }
 
-    // 6B. MySQL Update
-    try {
-      await Api.updatePassword(userId, cleanEmail, currentPassword, newPassword);
-      cloudSucceeded = true;
-    } catch (err) {
-      if (err.message && (err.message.includes('incorrect') || err.message.includes('Current password'))) {
-        throw err;
-      }
-      console.warn('[Storage] MySQL update password fallback to local storage:', err.message);
-    }
-
-    // 6C. Update local cache
+    // 6B. Update local cache
     const users = this.getLocalUsers();
     const userIndex = users.findIndex(u => (u.email || '').toLowerCase() === cleanEmail);
     if (userIndex !== -1) {
@@ -392,7 +335,7 @@ export const Storage = {
     this.setCurrentUser(null);
   },
 
-  // 8. Sheet Templates per user (Supabase -> MySQL -> Local Cache)
+  // 8. Sheet Templates per user (Supabase Cloud + Local Cache)
   async getSheets(userId) {
     if (!userId) return [];
 
@@ -416,18 +359,7 @@ export const Storage = {
       }
     }
 
-    // 8B. MySQL Sheets
-    try {
-      const sheets = await Api.getSheets(userId);
-      if (sheets && Array.isArray(sheets)) {
-        localStorage.setItem(`${STORAGE_KEYS.TEMPLATES_PREFIX}${userId}`, JSON.stringify(sheets));
-        return sheets;
-      }
-    } catch (err) {
-      console.warn('[Storage] Fetching sheets from local cache:', err.message);
-    }
-
-    // 8C. Local Cache
+    // 8B. Local Cache
     try {
       return JSON.parse(localStorage.getItem(`${STORAGE_KEYS.TEMPLATES_PREFIX}${userId}`) || '[]');
     } catch {
@@ -443,7 +375,7 @@ export const Storage = {
 
     const supabase = getSupabase();
 
-    // 8D. Sync to Supabase
+    // 8C. Sync to Supabase Cloud
     if (supabase) {
       try {
         for (const sheet of sheets) {
@@ -459,16 +391,9 @@ export const Storage = {
         console.warn('[Storage] Could not sync sheets to Supabase:', err.message);
       }
     }
-
-    // 8E. Sync to MySQL
-    try {
-      await Api.saveSheets(userId, sheets);
-    } catch (err) {
-      console.warn('[Storage] Could not sync sheets to MySQL:', err.message);
-    }
   },
 
-  // 9. Records per Sheet (Supabase -> MySQL -> Local Cache)
+  // 9. Records per Sheet (Supabase Cloud + Local Cache)
   async getRecords(userId, sheetId) {
     if (!userId || !sheetId) return [];
 
@@ -498,18 +423,7 @@ export const Storage = {
       }
     }
 
-    // 9B. MySQL Records
-    try {
-      const records = await Api.getRecords(userId, sheetId);
-      if (records && Array.isArray(records)) {
-        localStorage.setItem(`${STORAGE_KEYS.RECORDS_PREFIX}${sheetId}`, JSON.stringify(records));
-        return records;
-      }
-    } catch (err) {
-      console.warn('[Storage] Fetching records from local cache:', err.message);
-    }
-
-    // 9C. Local Cache
+    // 9B. Local Cache
     try {
       return JSON.parse(localStorage.getItem(`${STORAGE_KEYS.RECORDS_PREFIX}${sheetId}`) || '[]');
     } catch {
@@ -525,7 +439,7 @@ export const Storage = {
 
     const supabase = getSupabase();
 
-    // 9D. Sync to Supabase Cloud
+    // 9C. Sync to Supabase Cloud
     if (supabase) {
       try {
         await supabase
@@ -550,13 +464,6 @@ export const Storage = {
       } catch (err) {
         console.warn('[Storage] Could not sync records to Supabase:', err.message);
       }
-    }
-
-    // 9E. Sync to MySQL
-    try {
-      await Api.saveRecords(userId, sheetId, records);
-    } catch (err) {
-      console.warn('[Storage] Could not sync records to MySQL:', err.message);
     }
   }
 };
