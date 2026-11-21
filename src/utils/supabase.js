@@ -1,17 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
+const DEFAULT_SUPABASE_URL = 'https://itaitoqjkysnzxlzycqz.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'sb_publishable_JpiksyNuA2FFhQPJuZu8wg_sb7Q7p35';
+
 export const getSupabaseConfig = () => {
   const envUrl = import.meta.env.VITE_SUPABASE_URL || '';
   const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
   const localUrl = localStorage.getItem('qe_supabase_url') || '';
   const localKey = localStorage.getItem('qe_supabase_anon_key') || '';
 
-  let url = (localUrl || envUrl).trim();
+  let url = (localUrl || envUrl || DEFAULT_SUPABASE_URL).trim();
   // Strip trailing /rest/v1 or slashes if user copied the full API endpoint
   if (url) {
     url = url.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
   }
-  const key = (localKey || envKey).trim();
+  const key = (localKey || envKey || DEFAULT_SUPABASE_KEY).trim();
 
   const isConfigured = Boolean(
     url &&
