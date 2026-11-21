@@ -6,7 +6,11 @@ export const getSupabaseConfig = () => {
   const localUrl = localStorage.getItem('qe_supabase_url') || '';
   const localKey = localStorage.getItem('qe_supabase_anon_key') || '';
 
-  const url = (localUrl || envUrl).trim();
+  let url = (localUrl || envUrl).trim();
+  // Strip trailing /rest/v1 or slashes if user copied the full API endpoint
+  if (url) {
+    url = url.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
+  }
   const key = (localKey || envKey).trim();
 
   const isConfigured = Boolean(
@@ -62,8 +66,8 @@ export const testSupabaseConnection = async () => {
     const { error } = await client.from('app_users').select('id').limit(1);
     if (error) {
       // If table doesn't exist yet, it's connected to Supabase but needs schema script run
-      if (error.code === '42P01') {
-        return { connected: true, needsSchema: true, message: 'Connected, but tables need to be created using supabase_schema.sql' };
+      if (error.code === '42P01' || error.code === 'PGRST205') {
+        return { connected: true, needsSchema: true, message: 'Connected to Supabase! Run the SQL script in SQL Editor to create tables.' };
       }
       return { connected: false, error: error.message };
     }
