@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Storage } from './utils/storage';
 import { exportToExcel } from './utils/excel';
-import { isSupabaseConfigured } from './utils/supabase';
+import { Api } from './utils/api';
 import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
 import ColumnSetup from './components/ColumnSetup';
 import DataEntryForm from './components/DataEntryForm';
 import DataTable from './components/DataTable';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
-import { LayoutGrid, Plus, Sliders, Cloud, CheckCircle2 } from 'lucide-react';
+import { LayoutGrid, Plus, Sliders, Database, CheckCircle2, Server, ExternalLink } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -17,12 +17,17 @@ export default function App() {
   const [records, setRecords] = useState([]);
   const [showColumnSetup, setShowColumnSetup] = useState(false);
   const [isEditingColumns, setIsEditingColumns] = useState(false);
-  const [showCloudModal, setShowCloudModal] = useState(false);
-  const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('qe_supabase_url') || '');
-  const [supabaseAnonKey, setSupabaseAnonKey] = useState(localStorage.getItem('qe_supabase_anon_key') || '');
-  const [cloudSaved, setCloudSaved] = useState(false);
+  const [showDbModal, setShowDbModal] = useState(false);
+  const [dbStatus, setDbStatus] = useState({ connected: false, type: 'mysql' });
 
-  // 1. Initial Load of Auth
+  // 1. Check MySQL Status on mount
+  useEffect(() => {
+    Api.getDbStatus().then(status => {
+      setDbStatus(status);
+    });
+  }, []);
+
+  // 2. Initial Load of Auth
   useEffect(() => {
     const user = Storage.getCurrentUser();
     if (user) {
@@ -30,7 +35,7 @@ export default function App() {
     }
   }, []);
 
-  // 2. Load Sheets for User (Async Cloud + Local)
+  // 3. Load Sheets for User (Async MySQL + Local)
   useEffect(() => {
     let isMounted = true;
     if (currentUser) {
@@ -51,7 +56,7 @@ export default function App() {
     return () => { isMounted = false; };
   }, [currentUser]);
 
-  // 3. Load Records for Active Sheet (Async Cloud + Local)
+  // 4. Load Records for Active Sheet (Async MySQL + Local)
   useEffect(() => {
     let isMounted = true;
     if (currentUser && activeSheet) {
@@ -121,16 +126,6 @@ export default function App() {
     exportToExcel(activeSheet.columns, records, activeSheet.name);
   };
 
-  const handleSaveCloudConfig = (e) => {
-    e.preventDefault();
-    localStorage.setItem('qe_supabase_url', supabaseUrl.trim());
-    localStorage.setItem('qe_supabase_anon_key', supabaseAnonKey.trim());
-    setCloudSaved(true);
-    setTimeout(() => {
-      window.location.reload();
-    }, 1000);
-  };
-
   if (!currentUser) {
     return <AuthModal onAuthSuccess={handleAuthSuccess} />;
   }
@@ -153,7 +148,8 @@ export default function App() {
         }}
         onExport={handleExport}
         recordCount={records.length}
-        onOpenCloudSettings={() => setShowCloudModal(true)}
+        onOpenCloudSettings={() => setShowDbModal(true)}
+        dbConnected={dbStatus.connected}
       />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
@@ -193,8 +189,8 @@ export default function App() {
                   </span>
                 </h2>
                 <div className="flex items-center gap-1.5 mt-0.5 text-[11px] sm:text-xs text-slate-500">
-                  <span className={`inline-block w-2 h-2 rounded-full ${isSupabaseConfigured ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'}`}></span>
-                  <span>{isSupabaseConfigured ? 'Cloud Database Active (Syncs to all devices)' : 'Offline Local Storage'}</span>
+                  <span className={`inline-block w-2 h-2 rounded-full ${dbStatus.connected ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'}`}></span>
+                  <span>{dbStatus.connected ? `MySQL Database Active (${dbStatus.database || 'quickentry_db'})` : 'Local Storage Mode'}</span>
                 </div>
               </div>
 
@@ -239,70 +235,52 @@ export default function App() {
         />
       )}
 
-      {/* Cloud Settings Modal */}
-      {showCloudModal && (
+      {/* MySQL Info Modal */}
+      {showDbModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-5 sm:p-6 border border-slate-100">
             <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
-                <Cloud className="w-4 h-4" />
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${
+                dbStatus.connected ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
+              }`}>
+                <Database className="w-4 h-4" />
               </div>
               <h3 className="font-bold text-slate-800 text-sm sm:text-base">
-                Cross-Device Cloud Database (Supabase)
+                MySQL Database Status
               </h3>
             </div>
+
+            <div className="my-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs text-slate-700">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-slate-500">Status:</span>
+                <span className={`font-bold flex items-center gap-1 ${dbStatus.connected ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {dbStatus.connected ? '✓ Online & Syncing' : 'Offline (Using Local Storage)'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-slate-500">Host:</span>
+                <span className="font-mono text-slate-800">{dbStatus.host || '127.0.0.1'}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-slate-500">Database:</span>
+                <span className="font-mono text-slate-800">{dbStatus.database || 'quickentry_db'}</span>
+              </div>
+            </div>
+
             <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-              Connect your free Supabase database (<a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-blue-600 underline font-medium">supabase.com</a>) to automatically sync your sheets and records across PC, laptop, and mobile phones!
+              Configure your MySQL credentials in your project's <code className="bg-slate-100 px-1 py-0.5 rounded text-blue-600">.env</code> file.
+              Works with local MySQL (XAMPP / WAMP / Workbench) or any cloud MySQL server!
             </p>
 
-            {cloudSaved && (
-              <div className="mb-3 p-2.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-semibold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Cloud settings saved! Refreshing...</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSaveCloudConfig} className="space-y-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">Project URL</label>
-                <input
-                  type="text"
-                  placeholder="https://xyzcompany.supabase.co"
-                  value={supabaseUrl}
-                  onChange={(e) => setSupabaseUrl(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">Anon / Public API Key</label>
-                <input
-                  type="password"
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-                  value={supabaseAnonKey}
-                  onChange={(e) => setSupabaseAnonKey(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCloudModal(false)}
-                  className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg transition"
-                >
-                  Close
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
-                >
-                  Save & Connect
-                </button>
-              </div>
-            </form>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowDbModal(false)}
+                className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

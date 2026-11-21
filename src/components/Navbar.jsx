@@ -1,6 +1,5 @@
 import React from 'react';
-import { Database, LogOut, Mail, Download, Plus, Settings, Cloud } from 'lucide-react';
-import { isSupabaseConfigured } from '../utils/supabase';
+import { Database, LogOut, Mail, Download, Plus, Settings } from 'lucide-react';
 
 export default function Navbar({
   user,
@@ -12,7 +11,8 @@ export default function Navbar({
   onEditColumns,
   onExport,
   recordCount,
-  onOpenCloudSettings
+  onOpenCloudSettings,
+  dbConnected
 }) {
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
@@ -54,18 +54,18 @@ export default function Navbar({
 
         {/* Action Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Cloud Database Status */}
+          {/* MySQL Database Status */}
           <button
             onClick={onOpenCloudSettings}
-            title={isSupabaseConfigured ? "Connected to Supabase Cloud Database" : "Offline Storage (Click to connect Cloud DB)"}
-            className={`hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg border transition ${
-              isSupabaseConfigured
+            title={dbConnected ? "Connected to MySQL Database" : "Using Local Storage (Click for MySQL configuration)"}
+            className={`hidden sm:inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition ${
+              dbConnected
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
             }`}
           >
-            <Cloud className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">{isSupabaseConfigured ? 'Cloud Sync' : 'Local'}</span>
+            <Database className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">{dbConnected ? 'MySQL Connected' : 'MySQL Database'}</span>
           </button>
 
           {currentSheet && (
