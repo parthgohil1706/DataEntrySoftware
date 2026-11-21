@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Storage } from '../utils/storage';
 import { isValidEmail } from '../utils/validation';
-import { Mail, Lock, KeyRound, ArrowRight, ArrowLeft, ShieldCheck, CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { isSupabaseConfigured } from '../utils/supabase';
+import { Mail, Lock, KeyRound, ArrowRight, ArrowLeft, ShieldCheck, CheckCircle2, Eye, EyeOff, Loader2, Cloud, Database } from 'lucide-react';
 
 export default function AuthModal({ onAuthSuccess }) {
   // Modes: 'login' | 'register' | 'forgot_request' | 'forgot_verify'
@@ -19,6 +20,12 @@ export default function AuthModal({ onAuthSuccess }) {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  // Cloud Config Modal
+  const [showCloudConfig, setShowCloudConfig] = useState(false);
+  const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('qe_supabase_url') || '');
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState(localStorage.getItem('qe_supabase_anon_key') || '');
+  const [cloudSaved, setCloudSaved] = useState(false);
+
   const resetFormState = () => {
     setError('');
     setSuccessMsg('');
@@ -29,7 +36,7 @@ export default function AuthModal({ onAuthSuccess }) {
   };
 
   // 1. Handle Login
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -39,16 +46,19 @@ export default function AuthModal({ onAuthSuccess }) {
       return;
     }
 
+    setLoading(true);
     try {
-      const user = Storage.login(cleanEmail, password);
+      const user = await Storage.login(cleanEmail, password);
       onAuthSuccess(user);
     } catch (err) {
       setError(err.message || 'Login failed.');
+    } finally {
+      setLoading(false);
     }
   };
 
   // 2. Handle Register
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -70,11 +80,14 @@ export default function AuthModal({ onAuthSuccess }) {
       return;
     }
 
+    setLoading(true);
     try {
-      const user = Storage.register(cleanEmail, password);
+      const user = await Storage.register(cleanEmail, password);
       onAuthSuccess(user);
     } catch (err) {
       setError(err.message || 'Registration failed.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -103,7 +116,7 @@ export default function AuthModal({ onAuthSuccess }) {
   };
 
   // 4. Verify OTP & Set New Password
-  const handleVerifyOtpAndReset = (e) => {
+  const handleVerifyOtpAndReset = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -123,20 +136,44 @@ export default function AuthModal({ onAuthSuccess }) {
       return;
     }
 
+    setLoading(true);
     try {
-      const user = Storage.verifyOtpAndResetPassword(cleanEmail, cleanOtp, password);
+      const user = await Storage.verifyOtpAndResetPassword(cleanEmail, cleanOtp, password);
       onAuthSuccess(user);
     } catch (err) {
       setError(err.message || 'Failed to reset password.');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleSaveCloudConfig = (e) => {
+    e.preventDefault();
+    localStorage.setItem('qe_supabase_url', supabaseUrl.trim());
+    localStorage.setItem('qe_supabase_anon_key', supabaseAnonKey.trim());
+    setCloudSaved(true);
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
   };
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center p-3 sm:p-4">
       <div className="w-full max-w-md bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-slate-100 p-5 sm:p-7 md:p-8 relative">
 
+        {/* Database Status Button */}
+        <button
+          type="button"
+          onClick={() => setShowCloudConfig(true)}
+          className="absolute top-4 right-4 inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-full border transition hover:opacity-90 bg-slate-50 border-slate-200 text-slate-600"
+          title="Configure Cloud Database"
+        >
+          <Database className="w-3 h-3 text-blue-600" />
+          <span>{isSupabaseConfigured ? 'Cloud Connected' : 'Connect Cloud'}</span>
+        </button>
+
         {/* Header Icon & Title */}
-        <div className="text-center mb-5 sm:mb-6">
+        <div className="text-center mb-5 sm:mb-6 mt-2">
           <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-2.5 sm:mb-3 shadow-inner">
             {mode === 'login' && <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />}
             {mode === 'register' && <Mail className="w-5 h-5 sm:w-6 sm:h-6" />}
@@ -151,8 +188,8 @@ export default function AuthModal({ onAuthSuccess }) {
           </h2>
 
           <p className="text-slate-500 text-xs sm:text-sm mt-1">
-            {mode === 'login' && 'Access your workspace and data entry sheets'}
-            {mode === 'register' && 'Register to safely store and recover your records'}
+            {mode === 'login' && 'Access your workspace from any device'}
+            {mode === 'register' && 'Create an account to store and sync your records'}
             {mode === 'forgot_request' && 'We will send a 6-digit OTP code to your email'}
             {mode === 'forgot_verify' && `Enter the 6-digit OTP code sent to ${email}`}
           </p>
@@ -232,10 +269,20 @@ export default function AuthModal({ onAuthSuccess }) {
 
             <button
               type="submit"
-              className="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.99] min-h-[44px]"
+              disabled={loading}
+              className="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.99] min-h-[44px] disabled:opacity-60"
             >
-              <span>Sign In</span>
-              <ArrowRight className="w-4 h-4" />
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Signing In...</span>
+                </>
+              ) : (
+                <>
+                  <span>Sign In</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
         )}
@@ -260,7 +307,7 @@ export default function AuthModal({ onAuthSuccess }) {
                 />
               </div>
               <p className="text-[10px] sm:text-[11px] text-slate-400 mt-1">
-                Used to log in and receive recovery OTPs
+                Your email is used to log in across your phone, laptop, and PC
               </p>
             </div>
 
@@ -307,10 +354,20 @@ export default function AuthModal({ onAuthSuccess }) {
 
             <button
               type="submit"
-              className="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.99] min-h-[44px]"
+              disabled={loading}
+              className="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.99] min-h-[44px] disabled:opacity-60"
             >
-              <span>Register & Access Workspace</span>
-              <ArrowRight className="w-4 h-4" />
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Registering...</span>
+                </>
+              ) : (
+                <>
+                  <span>Register & Access Workspace</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
         )}
@@ -438,10 +495,20 @@ export default function AuthModal({ onAuthSuccess }) {
 
             <button
               type="submit"
-              className="w-full mt-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.99] min-h-[44px]"
+              disabled={loading}
+              className="w-full mt-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.99] min-h-[44px] disabled:opacity-60"
             >
-              <span>Reset Password & Enter</span>
-              <CheckCircle2 className="w-4 h-4" />
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Resetting...</span>
+                </>
+              ) : (
+                <>
+                  <span>Reset Password & Enter</span>
+                  <CheckCircle2 className="w-4 h-4" />
+                </>
+              )}
             </button>
 
             <div className="flex items-center justify-between pt-1">
@@ -484,6 +551,73 @@ export default function AuthModal({ onAuthSuccess }) {
           </div>
         )}
       </div>
+
+      {/* Cloud Database Config Modal */}
+      {showCloudConfig && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-5 sm:p-6 border border-slate-100">
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
+                <Cloud className="w-4 h-4" />
+              </div>
+              <h3 className="font-bold text-slate-800 text-sm sm:text-base">
+                Cross-Device Cloud Database (Supabase)
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+              Connect your free Supabase database (<a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-blue-600 underline font-medium">supabase.com</a>) to automatically sync your sheets and records across PC, laptop, and mobile phones!
+            </p>
+
+            {cloudSaved && (
+              <div className="mb-3 p-2.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-semibold">
+                ✓ Cloud settings saved! Refreshing...
+              </div>
+            )}
+
+            <form onSubmit={handleSaveCloudConfig} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">Project URL</label>
+                <input
+                  type="text"
+                  placeholder="https://xyzcompany.supabase.co"
+                  value={supabaseUrl}
+                  onChange={(e) => setSupabaseUrl(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">Anon / Public API Key</label>
+                <input
+                  type="password"
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                  value={supabaseAnonKey}
+                  onChange={(e) => setSupabaseAnonKey(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCloudConfig(false)}
+                  className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
+                >
+                  Save & Connect
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

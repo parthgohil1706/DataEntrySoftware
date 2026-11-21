@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Storage } from './utils/storage';
 import { exportToExcel } from './utils/excel';
+import { isSupabaseConfigured } from './utils/supabase';
 import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
 import ColumnSetup from './components/ColumnSetup';
 import DataEntryForm from './components/DataEntryForm';
 import DataTable from './components/DataTable';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
-import { LayoutGrid, Plus, Sliders } from 'lucide-react';
+import { LayoutGrid, Plus, Sliders, Cloud, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -16,6 +17,10 @@ export default function App() {
   const [records, setRecords] = useState([]);
   const [showColumnSetup, setShowColumnSetup] = useState(false);
   const [isEditingColumns, setIsEditingColumns] = useState(false);
+  const [showCloudModal, setShowCloudModal] = useState(false);
+  const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('qe_supabase_url') || '');
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState(localStorage.getItem('qe_supabase_anon_key') || '');
+  const [cloudSaved, setCloudSaved] = useState(false);
 
   // 1. Initial Load of Auth
   useEffect(() => {
@@ -25,31 +30,39 @@ export default function App() {
     }
   }, []);
 
-  // 2. Load Sheets for User
+  // 2. Load Sheets for User (Async Cloud + Local)
   useEffect(() => {
+    let isMounted = true;
     if (currentUser) {
-      const userSheets = Storage.getSheets(currentUser.id);
-      setSheets(userSheets);
-      if (userSheets.length > 0) {
-        setActiveSheet(userSheets[0]);
-      } else {
-        setActiveSheet(null);
-      }
+      Storage.getSheets(currentUser.id).then(userSheets => {
+        if (!isMounted) return;
+        setSheets(userSheets || []);
+        if (userSheets && userSheets.length > 0) {
+          setActiveSheet(userSheets[0]);
+        } else {
+          setActiveSheet(null);
+        }
+      });
     } else {
       setSheets([]);
       setActiveSheet(null);
       setRecords([]);
     }
+    return () => { isMounted = false; };
   }, [currentUser]);
 
-  // 3. Load Records for Active Sheet
+  // 3. Load Records for Active Sheet (Async Cloud + Local)
   useEffect(() => {
+    let isMounted = true;
     if (currentUser && activeSheet) {
-      const sheetRecords = Storage.getRecords(currentUser.id, activeSheet.id);
-      setRecords(sheetRecords);
+      Storage.getRecords(currentUser.id, activeSheet.id).then(sheetRecords => {
+        if (!isMounted) return;
+        setRecords(sheetRecords || []);
+      });
     } else {
       setRecords([]);
     }
+    return () => { isMounted = false; };
   }, [currentUser, activeSheet]);
 
   // Handlers
@@ -62,7 +75,7 @@ export default function App() {
     setCurrentUser(null);
   };
 
-  const handleSaveSheet = (sheetConfig) => {
+  const handleSaveSheet = async (sheetConfig) => {
     let updated;
     const exists = sheets.find(s => s.id === sheetConfig.id);
     if (exists) {
@@ -71,13 +84,13 @@ export default function App() {
       updated = [...sheets, sheetConfig];
     }
     setSheets(updated);
-    Storage.saveSheets(currentUser.id, updated);
+    await Storage.saveSheets(currentUser.id, updated);
     setActiveSheet(sheetConfig);
     setShowColumnSetup(false);
     setIsEditingColumns(false);
   };
 
-  const handleAddRecord = (recordData) => {
+  const handleAddRecord = async (recordData) => {
     if (!currentUser || !activeSheet) return;
     const newRecord = {
       _id: 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
@@ -86,26 +99,36 @@ export default function App() {
     };
     const updated = [newRecord, ...records];
     setRecords(updated);
-    Storage.saveRecords(currentUser.id, activeSheet.id, updated);
+    await Storage.saveRecords(currentUser.id, activeSheet.id, updated);
   };
 
-  const handleDeleteRecord = (recordId) => {
+  const handleDeleteRecord = async (recordId) => {
     if (!currentUser || !activeSheet) return;
     const updated = records.filter(r => r._id !== recordId);
     setRecords(updated);
-    Storage.saveRecords(currentUser.id, activeSheet.id, updated);
+    await Storage.saveRecords(currentUser.id, activeSheet.id, updated);
   };
 
-  const handleUpdateRecord = (recordId, updatedFields) => {
+  const handleUpdateRecord = async (recordId, updatedFields) => {
     if (!currentUser || !activeSheet) return;
     const updated = records.map(r => r._id === recordId ? { ...r, ...updatedFields } : r);
     setRecords(updated);
-    Storage.saveRecords(currentUser.id, activeSheet.id, updated);
+    await Storage.saveRecords(currentUser.id, activeSheet.id, updated);
   };
 
   const handleExport = () => {
     if (!activeSheet) return;
     exportToExcel(activeSheet.columns, records, activeSheet.name);
+  };
+
+  const handleSaveCloudConfig = (e) => {
+    e.preventDefault();
+    localStorage.setItem('qe_supabase_url', supabaseUrl.trim());
+    localStorage.setItem('qe_supabase_anon_key', supabaseAnonKey.trim());
+    setCloudSaved(true);
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
   };
 
   if (!currentUser) {
@@ -130,6 +153,7 @@ export default function App() {
         }}
         onExport={handleExport}
         recordCount={records.length}
+        onOpenCloudSettings={() => setShowCloudModal(true)}
       />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
@@ -169,8 +193,8 @@ export default function App() {
                   </span>
                 </h2>
                 <div className="flex items-center gap-1.5 mt-0.5 text-[11px] sm:text-xs text-slate-500">
-                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-                  <span>Auto-Save Active (Safe Local Storage)</span>
+                  <span className={`inline-block w-2 h-2 rounded-full ${isSupabaseConfigured ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'}`}></span>
+                  <span>{isSupabaseConfigured ? 'Cloud Database Active (Syncs to all devices)' : 'Offline Local Storage'}</span>
                 </div>
               </div>
 
@@ -213,6 +237,74 @@ export default function App() {
           onSave={handleSaveSheet}
           onCancel={() => setShowColumnSetup(false)}
         />
+      )}
+
+      {/* Cloud Settings Modal */}
+      {showCloudModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-5 sm:p-6 border border-slate-100">
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
+                <Cloud className="w-4 h-4" />
+              </div>
+              <h3 className="font-bold text-slate-800 text-sm sm:text-base">
+                Cross-Device Cloud Database (Supabase)
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+              Connect your free Supabase database (<a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-blue-600 underline font-medium">supabase.com</a>) to automatically sync your sheets and records across PC, laptop, and mobile phones!
+            </p>
+
+            {cloudSaved && (
+              <div className="mb-3 p-2.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Cloud settings saved! Refreshing...</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveCloudConfig} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">Project URL</label>
+                <input
+                  type="text"
+                  placeholder="https://xyzcompany.supabase.co"
+                  value={supabaseUrl}
+                  onChange={(e) => setSupabaseUrl(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">Anon / Public API Key</label>
+                <input
+                  type="password"
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                  value={supabaseAnonKey}
+                  onChange={(e) => setSupabaseAnonKey(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCloudModal(false)}
+                  className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
+                >
+                  Save & Connect
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* PWA Install Banner */}

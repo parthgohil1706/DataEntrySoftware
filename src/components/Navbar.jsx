@@ -1,5 +1,6 @@
 import React from 'react';
-import { Database, LogOut, Mail, Download, Plus, Settings } from 'lucide-react';
+import { Database, LogOut, Mail, Download, Plus, Settings, Cloud } from 'lucide-react';
+import { isSupabaseConfigured } from '../utils/supabase';
 
 export default function Navbar({
   user,
@@ -10,7 +11,8 @@ export default function Navbar({
   onNewSheet,
   onEditColumns,
   onExport,
-  recordCount
+  recordCount,
+  onOpenCloudSettings
 }) {
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
@@ -52,6 +54,20 @@ export default function Navbar({
 
         {/* Action Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Cloud Database Status */}
+          <button
+            onClick={onOpenCloudSettings}
+            title={isSupabaseConfigured ? "Connected to Supabase Cloud Database" : "Offline Storage (Click to connect Cloud DB)"}
+            className={`hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg border transition ${
+              isSupabaseConfigured
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            <Cloud className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">{isSupabaseConfigured ? 'Cloud Sync' : 'Local'}</span>
+          </button>
+
           {currentSheet && (
             <>
               <button
@@ -77,10 +93,9 @@ export default function Navbar({
             </>
           )}
 
-          {/* User profile / Logout: Email ID is strictly hidden in mobile & tablet views */}
+          {/* User profile / Logout */}
           {user && (
             <div className="flex items-center pl-1 sm:pl-2 border-l border-slate-200 gap-1 sm:gap-2">
-              {/* Only visible on wide desktop screens (hidden on all mobile & tablet devices) */}
               <span
                 className="hidden xl:inline-flex items-center gap-1.5 text-xs text-slate-600 font-medium bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200 max-w-[180px] truncate"
                 title={user.email}
@@ -89,7 +104,6 @@ export default function Navbar({
                 <span className="truncate">{user.email}</span>
               </span>
 
-              {/* Clean Logout Button for Mobile & Desktop */}
               <button
                 onClick={onLogout}
                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
